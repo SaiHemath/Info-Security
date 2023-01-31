@@ -14,6 +14,14 @@ def get_public():
 def get_secret():
     return 'This secret message should only be shown to authorized people!'
 
+@route('/login')
+def get_login():
+    return "ok, it looks like you logged in" 
+
+@route('/logout')
+def get_logout():
+    return "ok, it looks like you logged out"
+
 if 'PYTHONANYWHERE_DOMAIN' in os.environ:
     application = default_app()
 else:
