@@ -2,7 +2,7 @@
 import hashlib
 import json
 import os, string, random
-from bottle import default_app, route, run, redirect, request, response
+from bottle import default_app, route, run, redirect, request, response, template, get, post
 
 def hash_password(password, n=1):
     word = password
@@ -27,27 +27,58 @@ def get_index():
 def get_public():
     return 'This public message should be shown to absolutely everyone!'
 
-@route('/secret')
+@get('/secret')
 def get_secret():
     user = request.cookies.get("user","-")
-    greeting = f"Hello, {user}! "
-    if user != "-":
-        return greeting + 'This secret message should only be shown to authorized people!'
-    else:
-        return 'Sorry, no secret message for you!'
+
+    if user == "-":
+        return 'You need to log in to enter a secret!'
+    try:
+        with open(f'data/{user}-secret.json',"r") as f:
+            data = json.load(f)
+            secret = data['secret']
+    except:
+        secret = ""
+
+    return template("secret.tpl", secret=secret)
+
+@post('/secret')
+def post_secret():
+    user = request.cookies.get("user","-")
+    if user == "-":
+        return 'You need to log in to enter a secret!'
+    secret = request.forms.get('secret', None)
+    with open(f'data/{user}-secret.json',"w") as f:
+        json.dump({
+                'secret': secret,
+        }, f)
+    return f"Your secret, {user}, is safe with me."
 
 @route('/counter')
 def get_counter():
     n = int( request.cookies.get('counter', '0') )
     n = n + 1
     response.set_cookie("counter", str(n), path='/')
-    return f"The counter is at {n}."
+    return f"The counter is at {n}"
 
-@route('/signup/<user>/<password>/<password2>')
-def get_signup(user, password, password2):
+@get('/signup')
+def get_signup():
     current_user = request.cookies.get("user","-")
     if current_user != "-":
         return "Sorry, you have to sign out first."
+    return template("signup.tpl")
+
+@post('/signup')
+def post_signup():
+    user = request.forms.get('user', None)
+    if not user:
+        return "Please enter a user name."
+    password = request.forms.get('password', None)
+    if not password:
+        return "Please enter a password."
+    password2 = request.forms.get('password', None)
+    if not password2:
+        return "Please enter the same password a second time."
 
     if len(user) < 3:
         return "Sorry, the user name requires at least 3 characters"
@@ -58,6 +89,9 @@ def get_signup(user, password, password2):
         return "Sorry, the password requires at least 6 characters"
     if not password.isalnum():
         return "Sorry, the password must be letters and digits"
+
+    if password != password2:
+        return "Sorry, the passwords must match"
 
     # store the password
     salt = random_string(20)
@@ -70,12 +104,29 @@ def get_signup(user, password, password2):
             }, f)
 
     response.set_cookie("user", user, path='/')
-    return "ok, it looks like you logged in"
+    return f"ok, it looks like you logged in as {user}"
 
-@route('/login/<user>/<password>')
-def get_login(user, password):
+@get('/login')
+def get_login():
+    current_user = request.cookies.get("user","-")
+    if current_user != "-":
+        return "Sorry, you have to sign out first."
+    return template("login.tpl")
+
+
+@post('/login')
+def post_login():
+    user = request.forms.get('user', None)
+    if not user:
+        return "Please enter a user name."
+    password = request.forms.get('password', None)
+    if not password:
+        return "Please enter a password."
+
     # set default response to '-' if login fails
     response.set_cookie("user", '-', path='/')
+
+    user = user.strip()
 
     # sanitize user name so we don't inject malicious filenames
     if not user.isalnum():
