@@ -4,6 +4,12 @@ import json
 import os, string, random
 from bottle import default_app, route, run, redirect, request, response, template, get, post
 
+def encrypt(s):
+    return s[::-1]
+
+def decrypt(s):
+    return s[::-1]
+
 def hash_password(password, n=1):
     word = password
     for i in range(0,n):
@@ -36,7 +42,8 @@ def get_secret():
     try:
         with open(f'data/{user}-secret.json',"r") as f:
             data = json.load(f)
-            secret = data['secret']
+            encrypted_secret = data['secret']
+        secret = decrypt(encrypted_secret)
     except:
         secret = ""
 
@@ -47,12 +54,16 @@ def post_secret():
     user = request.cookies.get("user","-")
     if user == "-":
         return 'You need to log in to enter a secret!'
+    with open(f'data/{user}-profile.json',"r") as f:
+        profile = json.load(f)
+        favorite_color = profile['favorite_color']
     secret = request.forms.get('secret', None)
+    encrypted_secret = encrypt(secret)
     with open(f'data/{user}-secret.json',"w") as f:
         json.dump({
-                'secret': secret,
+                'secret': encrypted_secret,
         }, f)
-    return f"Your secret, {user}, is safe with me."
+    return f"Your secret, {user}, is safe with me. I also like {favorite_color}."
 
 @route('/counter')
 def get_counter():
@@ -84,6 +95,9 @@ def post_signup():
         return "Sorry, the user name requires at least 3 characters"
     if not user.isalnum():
         return "Sorry, the user name must be letters and digits"
+    # if user exists, then that's an error
+    if os.path.isfile(f'data/{user}-profile.json'):
+        return "Sorry, that user name is taken"
 
     if len(password) < 6:
         return "Sorry, the password requires at least 6 characters"
@@ -97,10 +111,16 @@ def post_signup():
     salt = random_string(20)
     hash_known_password = hash_password(password + salt, n=100000)
 
-    with open(f'data/{user}.json',"w") as f:
+    # get favorite color
+    favorite_color = request.forms.get('favorite_color', "unknown")
+    if favorite_color.strip() == "":
+        favorite_color = "unknown"
+
+    with open(f'data/{user}-profile.json',"w") as f:
         json.dump({
                 'salt': salt,
-                'password-hash': hash_known_password
+                'password-hash': hash_known_password,
+                'favorite_color': favorite_color
             }, f)
 
     response.set_cookie("user", user, path='/')
@@ -133,7 +153,7 @@ def post_login():
         return "Sorry, the user name must be letters and digits"
 
     # see if user exists
-    filename = f'data/{user}.json'
+    filename = f'data/{user}-profile.json'
     if not os.path.isfile(filename):
         return "Sorry, no such user"
 
