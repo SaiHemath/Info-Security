@@ -38,7 +38,7 @@ def random_string(n):
 def get_index():
     redirect('/public')
 
-@route('/public')
+@app.route('/public')
 def get_public():
     return 'This public message should be shown to absolutely everyone!'
 
